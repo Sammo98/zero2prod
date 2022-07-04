@@ -7,7 +7,6 @@ use sqlx::{PgPool, PgConnection, Connection, Executor};
 use std::net::TcpListener;
 use uuid::Uuid;
 use once_cell::sync::Lazy;
-use secrecy::ExposeSecret;
 
 
 static TRACING: Lazy<()> = Lazy::new(|| {
@@ -65,21 +64,24 @@ async fn spawn_app() -> TestApp {
 pub async fn configure_database(config: &DatabaseSettings) -> PgPool{
 
     // Connect to the postgres instance without specifying a db
-    let mut connection = PgConnection::connect(&config.connection_string_without_db().expose_secret())
+    let mut connection = PgConnection::connect_with(&config.without_db())
         .await
-        .expect("Failed to connection to postgres");
+        .expect("Failed to connect to Postgres");
+
+    
     
     // Create a db with the randomised db name
     connection
-        .execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
-        .await
-        .expect("Failed to create database.");
+    .execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
+    .await
+    .expect("Failed to create database.");
 
     // Create connection pool to new database with the randomised name
-    let connection_pool = PgPool::connect(&config.connection_string().expose_secret())
+    let connection_pool = PgPool::connect_with(config.with_db())
         .await
-        .expect("Failed to connect to postgres");
+        .expect("Failed to Connect to postgres");
 
+    
     // run migrations on new database and return connection pool which is connected to the "temp" database
     sqlx::migrate!("./migrations")
         .run(&connection_pool)
